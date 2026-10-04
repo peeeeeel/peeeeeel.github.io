@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英语外刊学习工具（多文章管理版）</title>
+    <!-- 引入 html2pdf 库 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            background-color: #fff;
+            color: #222;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .article-meta-panel{
+            border:1px solid #ddd;
+            padding:10px;
+            margin-bottom:12px;
+            display:grid;
+            gap:8px;
+            grid-template-columns: repeat(auto-fit, minmax(220px,1fr));
+        }
+        .article-meta-panel label{
+            font-size:14px;
+        }
+        .article-meta-panel input{
+            width:100%;
+            padding:6px;
+            border:1px solid #aaa;
+        }
+        .article-manager{
+            border:1px solid #ddd;
+            padding:10px;
+            margin-bottom:12px;
+        }
+        .article-item{
+            display:inline-block;
+            padding:4px 8px;
+            margin:2px;
+            border:1px solid #aaa;
+            cursor:pointer;
+            border-radius:3px;
+        }
+        .article-item.active{
+            background:#222;
+            color:#fff;
+        }
+        .article-item-del{
+            margin-left:6px;
+            color:#c44;
+        }
+        .header-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .header-bar textarea {
+            flex: 1;
+            min-width: 280px;
+            padding: 8px;
+            border: 1px solid #aaa;
+            resize: vertical;
+        }
+        .btn-group {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 7px 10px;
+            border: 1px solid #333;
+            background: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button.active {
+            background-color: #222;
+            color: #fff;
+        }
+        .danger-btn{
+            background:#ffeeee;color:#b30000;
+        }
+        .word-count {
+            font-size: 14px;
+            color: #444;
+        }
+        .mark-list-box{
+            border:1px solid #ddd;
+            padding:8px;
+            margin-bottom:8px;
+            max-height:140px;
+            overflow-y:auto;
+        }
+        .mark-item-row{
+            cursor:pointer;
+            padding:2px 4px;
+            font-size:13px;
+            white-space: nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+        .mark-item-row:hover{
+            background:#f4f4f4;
+        }
+        .mark-item-row.selected{
+            background:#dde8f5;
+        }
+        .mark-list-actions{
+            margin-bottom:12px;
+        }
+        .main-wrap {
+            display: grid;
+            grid-template-columns: 1fr 1px 1fr;
+            gap: 20px;
+        }
+        .divider {
+            border-left: 2px dashed #aaa;
+        }
+        .panel {
+            padding: 16px;
+            border: 1px solid #ddd;
+            min-height: 500px;
+        }
+        #originalText {
+            font-size: 16px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        .mark-vocab {
+            color: #0055cc;
+        }
+        .mark-phrase {
+            font-weight: bold;
+        }
+        .mark-sentence {
+            text-decoration: underline;
+        }
+        .mark-selected{
+            background:#e9e9e9;
+        }
+        .mark-hover-highlight{
+            background:#ffef96 !important;
+        }
+        #rightPanel {
+            display: flex;
+            flex-direction: column;
+            gap:12px;
+        }
+        .right-section{
+            border:1px solid #eee;
+            padding:10px;
+            border-radius:4px;
+        }
+        .right-section h4{
+            margin-bottom:8px;
+            font-size:14px;
+            color:#555;
+        }
+        .temp-area{
+            flex:0 0 auto;
+        }
+        .fixed-area{
+            flex:1 1 auto;
+            overflow-y:auto;
+        }
+        #parseArea {
+            width: 100%;
+            border: 1px solid #ddd;
+            padding:8px;
+            outline: none;
+            font-size: 15px;
+            line-height: 1.6;
+            resize: none;
+            background: transparent;
+        }
+        #parseArea:disabled {
+            color: #999;
+            background:#f8f8f8;
+        }
+        .fixed-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid #eee;
+            border-radius:3px;
+        }
+        .fixed-item.temp-item{
+            border-color:#cce5ff;
+        }
+        .fixed-item > div {
+            white-space: pre-wrap;
+        }
+        .item-checkbox{
+            margin-right:6px;
+        }
+        .modal-mask{
+            position:fixed;
+            inset:0;
+            background:rgba(0,0,0,0.3);
+            display:none;
+            align-items:center;
+            justify-content:center;
+            z-index:999;
+        }
+        .modal-inner{
+            background:#fff;
+            padding:20px;
+            border-radius:6px;
+        }
+        .modal-mask.show{
+            display:flex;
+        }
+        @media (max-width:768px) {
+            .main-wrap {
+                grid-template-columns: 1fr;
+            }
+            .divider {
+                display: none;
+            }
+        }
+        /* ===== PDF打印专用样式 ===== */
+        #printWrap{
+            padding:20px;
+            background:#fff;
+        }
+        .print-title{
+            font-size:18px;
+            font-weight:bold;
+            margin-bottom:12px;
+        }
+        .print-subtitle{
+            font-size:15px;
+            margin:8px 0;
+        }
+        .print-original {
+            font-size:14px;
+            line-height:1.6;
+            margin-bottom:24px;
+            white-space:pre-wrap;
+        }
+        .print-mark-vocab{color:#0055cc;}
+        .print-mark-phrase{font-weight:bold;}
+        .print-mark-sentence{text-decoration:underline;}
+        .print-sup{
+            font-size:0.7em;
+            vertical-align:super;
+            margin-left:2px;
+        }
+        .print-mark-item{
+            margin-bottom:8px;
+            white-space:pre-wrap;
+        }
+        @media print {
+            body * {
+                display: none !important;
+            }
+            #printWrap {
+                display: block !important;
+                position: static !important;
+                width: 100%;
+                padding: 20px;
+            }
+            #printWrap * {
+                visibility: visible !important;
+            }
+            @page {
+                margin: 15mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="article-meta-panel">
+            <div>
+                <label>文章标题</label>
+                <input id="artTitle" placeholder="自定义文章标题">
+            </div>
+            <div>
+                <label>原文来源</label>
+                <input id="artSource" placeholder="例如：The Economist">
+            </div>
+            <div>
+                <label>发布时间</label>
+                <input id="artDate" placeholder="例如：2026-09">
+            </div>
+        </div>
+        <div class="article-manager">
+            <span>📚文章列表：</span>
+            <div id="articleList"></div>
+            <button id="newArticleBtn">新建文章</button>
+        </div>
+        <div class="header-bar">
+            <textarea id="inputArticle" placeholder="粘贴250词左右外刊原文，支持换行分段"></textarea>
+            <div class="btn-group">
+                <button id="loadBtn">加载文本</button>
+                <button id="penBtn">🖊️ 笔(编辑标记)</button>
+                <button id="bulbBtn">💡 灯泡(悬浮释义)</button>
+                <button id="editMarkParseBtn">保存解析</button>
+                <button id="printBtn">🖨️打印原文+固定释义</button>
+                <button id="exportPdfBtn">📥导出PDF(原文+固定释义)</button>
+                <button id="exportSingleJsonBtn">📄导出单篇JSON</button>
+                <button id="importJsonBtn">📂导入JSON备份</button>
+                <button id="saveLocalBtn">💾保存全部文章</button>
+                <button id="resetBtn">重置当前文章</button>
+                <button id="clearFixedBtn">清空固定解析</button>
+            </div>
+            <div class="word-count">词数：<span id="countNum">0</span></div>
+        </div>
+        <div class="mark-list-box">
+            <div>已标记列表（按原文顺序，点击条目选中）：</div>
+            <div id="markListWrap"></div>
+        </div>
+        <div class="mark-list-actions">
+            <button id="delSelectedMarkBtn" class="danger-btn">删除选中标记</button>
+        </div>
+
+        <div class="main-wrap">
+            <div class="panel">
+                <div id="originalText"></div>
+            </div>
+            <div class="divider"></div>
+            <div class="panel" id="rightPanel">
+                <textarea id="parseArea" placeholder="选中标记后在此填写对应解析"></textarea>
+
+                <div class="right-section temp-area">
+                    <h4>临时悬浮释义（鼠标移动更新）</h4>
+                    <div id="tempContent"></div>
+                </div>
+                <div class="right-section fixed-area">
+                    <h4>✅已收藏固定释义（不随鼠标消失）</h4>
+                    <div id="fixedContent"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-mask" id="typeModal">
+            <div class="modal-inner">
+                <div>选择标记类型（可多选）</div>
+                <label><input type="checkbox" value="vocab">单词(vocab)</label><br>
+                <label><input type="checkbox" value="phrase">短语(phrase)</label><br>
+                <label><input type="checkbox" value="sentence">长难句(sentence)</label><br>
+                <div style="margin-top:10px;">
+                    <button id="confirmTypeBtn">确认修改标记</button>
+                    <button id="cancelTypeBtn">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 打印/PDF渲染容器 -->
+        <div id="printWrap" style="display:none;"></div>
+        <!-- 隐藏文件输入框用于导入json -->
+        <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
+
+    <script>
+        const STORAGE_KEY = "english-reader-articles";
+        let appState = {
+            articles:[],
+            currentArticleId:null
+        };
+        const $ = s => document.querySelector(s);
+        const $$ = s => document.querySelectorAll(s);
+
+        function createArticle(){
+            return {
+                id:Date.now().toString(),
+                title:`文章${appState.articles.length+1}`,
+                source:"",
+                pubDate:"",
+                rawText:"",
+                marks:[],
+                fixedMarkIds:[],
+                mode:"normal",
+                selectedMarkIndex:null,
+                hoverMarks:[],
+                listHoverMarkIndex:null
+            }
+        }
+        function getCurrentArticle(){
+            return appState.articles.find(a=>a.id === appState.currentArticleId);
+        }
+
+        function getFirstLine(str){
+            if(!str) return "";
+            return str.split(/\r?\n/)[0];
+        }
+
+        const inputArticle = $("#inputArticle");
+        const artTitle = $("#artTitle");
+        const artSource = $("#artSource");
+        const artDate = $("#artDate");
+        const loadBtn = $("#loadBtn");
+        const penBtn = $("#penBtn");
+        const bulbBtn = $("#bulbBtn");
+        const editMarkParseBtn = $("#editMarkParseBtn");
+        const printBtn = $("#printBtn");
+        const exportPdfBtn = $("#exportPdfBtn");
+        const exportSingleJsonBtn = $("#exportSingleJsonBtn");
+        const importJsonBtn = $("#importJsonBtn");
+        const jsonFileInput = $("#jsonFileInput");
+        const saveLocalBtn = $("#saveLocalBtn");
+        const resetBtn = $("#resetBtn");
+        const clearFixedBtn = $("#clearFixedBtn");
+        const delSelectedMarkBtn = $("#delSelectedMarkBtn");
+        const originalText = $("#originalText");
+        const parseArea = $("#parseArea");
+        const tempContent = $("#tempContent");
+        const fixedContent = $("#fixedContent");
+        const countNum = $("#countNum");
+        const markListWrap = $("#markListWrap");
+        const articleListWrap = $("#articleList");
+        const newArticleBtn = $("#newArticleBtn");
+        const typeModal = $("#typeModal");
+        const confirmTypeBtn = $("#confirmTypeBtn");
+        const cancelTypeBtn = $("#cancelTypeBtn");
+        const printWrap = $("#printWrap");
+
+        let pendingSelectionRange = null;
+        let editMarkIndex = null;
+
+        function isRangeOverlap(s1,e1,s2,e2){
+            return !(e1 <= s2 || e2 <= s1);
+        }
+
+        function countWords(txt) {
+            const arr = txt.trim().split(/\s+/).filter(x=>x);
+            return arr.length;
+        }
+        function updateWordCount(){
+            const art = getCurrentArticle();
+            if(!art) return;
+            countNum.textContent = countWords(art.rawText).toString();
+        }
+
+        function renderArticleList(){
+            let html = "";
+            appState.articles.forEach(art=>{
+                html += `<span class="article-item ${art.id === appState.currentArticleId?'active':''}" data-aid="${art.id}">${escapeHtml(art.title)}
+                    <span class="article-item-del" data-del-id="${art.id}">×</span>
+                </span>`;
+            });
+            articleListWrap.innerHTML = html;
+            $$(".article-item").forEach(el=>{
+                el.onclick = (e)=>{
+                    if(e.target.classList.contains("article-item-del")) return;
+                    appState.currentArticleId = el.dataset.aid;
+                    loadCurrentArticle();
+                    renderArticleList();
+                }
+            })
+            $$(".article-item-del").forEach(el=>{
+                el.onclick = (e)=>{
+                    e.stopPropagation();
+                    const delId = el.dataset.delId;
+                    appState.articles = appState.articles.filter(a=>a.id !== delId);
+                    if(appState.currentArticleId === delId){
+                        if(appState.articles.length>0) appState.currentArticleId = appState.articles[0].id;
+                        else appState.currentArticleId = null;
+                    }
+                    saveAllToLocal();
+                    renderArticleList();
+                    loadCurrentArticle();
+                }
+            })
+        }
+
+        function loadCurrentArticle(){
+            const art = getCurrentArticle();
+            if(!art){
+                inputArticle.value = "";
+                artTitle.value = "";
+                artSource.value = "";
+                artDate.value = "";
+                originalText.innerHTML = "";
+                markListWrap.innerHTML = "";
+                tempContent.innerHTML = "";
+                fixedContent.innerHTML = "";
+                parseArea.value = "";
+                countNum.textContent="0";
+                return;
+            }
+            artTitle.value = art.title;
+            artSource.value = art.source;
+            artDate.value = art.pubDate;
+            inputArticle.value = art.rawText;
+            setMode(art.mode);
+            renderOriginal();
+            renderRight();
+            renderMarkList();
+            updateWordCount();
+        }
+
+        function syncMetaToArticle(){
+            const art = getCurrentArticle();
+            if(!art) return;
+            art.title = artTitle.value;
+            art.source = artSource.value;
+            art.pubDate = artDate.value;
+        }
+        artTitle.oninput = syncMetaToArticle;
+        artSource.oninput = syncMetaToArticle;
+        artDate.oninput = syncMetaToArticle;
+
+        loadBtn.onclick = ()=>{
+            let art = getCurrentArticle();
+            if(!art){
+                art = createArticle();
+                appState.articles.push(art);
+                appState.currentArticleId = art.id;
+                renderArticleList();
+            }
+            syncMetaToArticle();
+            art.rawText = inputArticle.value;
+            art.marks = [];
+            art.fixedMarkIds = [];
+            art.selectedMarkIndex = null;
+            art.listHoverMarkIndex = null;
+            parseArea.value = "";
+            renderOriginal();
+            renderRight();
+            renderMarkList();
+            updateWordCount();
+        }
+
+        function renderOriginal(){
+            const art = getCurrentArticle();
+            if(!art) return;
+            const plainText = art.rawText;
+            const marks = [...art.marks];
+
+            const breakPoints = new Set();
+            breakPoints.add(0);
+            breakPoints.add(plainText.length);
+            for(const m of marks){
+                breakPoints.add(m.start);
+                breakPoints.add(m.end);
+            }
+            const posList = Array.from(breakPoints).sort((a,b)=>a-b);
+
+            let html = "";
+            for(let i=0; i < posList.length -1; i++){
+                const s = posList[i];
+                const e = posList[i+1];
+                if(s >= e) continue;
+                const sliceText = plainText.slice(s,e);
+                const hitMarks = marks.filter(m => m.start <= s && m.end >= e);
+                if(hitMarks.length === 0){
+                    html += escapeHtml(sliceText);
+                    continue;
+                }
+
+                let cls = "";
+                const hitTypes = new Set();
+                for(const hm of hitMarks){
+                    hm.types.forEach(t=> hitTypes.add(t));
+                }
+                if(hitTypes.has("vocab")) cls += " mark-vocab";
+                if(hitTypes.has("phrase")) cls += " mark-phrase";
+                if(hitTypes.has("sentence")) cls += " mark-sentence";
+
+                if(art.selectedMarkIndex !== null){
+                    const selMark = art.marks[art.selectedMarkIndex];
+                    if(isRangeOverlap(s,e, selMark.start, selMark.end)){
+                        cls += " mark-selected";
+                    }
+                }
+                if(art.listHoverMarkIndex !== null){
+                    const hoverMark = art.marks[art.listHoverMarkIndex];
+                    if(isRangeOverlap(s,e, hoverMark.start, hoverMark.end)){
+                        cls += " mark-hover-highlight";
+                    }
+                }
+
+                const hitIdxList = hitMarks.map(m => art.marks.indexOf(m));
+                html += `<span class="mark-item${cls}" data-hit-idxs="${hitIdxList.join(',')}">${escapeHtml(sliceText)}</span>`;
+            }
+            originalText.innerHTML = html;
+
+            $$(".mark-item").forEach(span=>{
+                const raw = span.dataset.hitIdxs || "";
+                const hitIdxs = raw.split(',').filter(x=>x!=='').map(Number);
+                span.onmouseenter = ()=>{
+                    if(art.mode !== "bulb") return;
+                    clearTimeout(span.hoverTimer);
+                    art.hoverMarks = hitIdxs.map(idx => art.marks[idx]);
+                    if(hitIdxs.length>0){
+                        art.listHoverMarkIndex = hitIdxs[0];
+                    }else{
+                        art.listHoverMarkIndex = null;
+                    }
+                    renderOriginal();
+                    renderRight();
+                }
+                span.onmouseleave = ()=>{
+                    if(art.mode !== "bulb") return;
+                    span.hoverTimer = setTimeout(()=>{
+                        art.hoverMarks = [];
+                        art.listHoverMarkIndex = null;
+                        renderOriginal();
+                        renderRight();
+                    },250);
+                }
+                span.onclick = () => {
+                    if(art.mode !== "pen") return;
+                    if(hitIdxs.length === 0) return;
+                    const targetIdx = hitIdxs[0];
+                    art.selectedMarkIndex = targetIdx;
+                    parseArea.value = art.marks[targetIdx].parse;
+                    renderMarkList();
+                    renderOriginal();
+                    renderRight();
+                    setTimeout(()=>{
+                        if(!parseArea.disabled) parseArea.focus();
+                    },0);
+                }
+            })
+        }
+
+        function escapeHtml(str){
+            return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        }
+
+        function renderMarkList(){
+            const art = getCurrentArticle();
+            if(!art) return;
+            let html = "";
+            const marksWithIndex = art.marks.map((m, idx)=>({mark:m, idx:idx}));
+            const sorted = marksWithIndex.sort((a,b)=>a.mark.start - b.mark.start);
+            sorted.forEach((item)=>{
+                const realIdx = item.idx;
+                const m = item.mark;
+                const previewParse = getFirstLine(m.parse);
+                html += `<div class="mark-item-row ${art.selectedMarkIndex===realIdx?'selected':''}" data-midx="${realIdx}">【${m.types.join(",")}】 ${escapeHtml(m.text)} | 解析：${escapeHtml(previewParse)||"空"}</div>`;
+            })
+            markListWrap.innerHTML = html;
+            $$(".mark-item-row").forEach(row=>{
+                const mid = Number(row.dataset.midx);
+                row.onclick = ()=>{
+                    art.selectedMarkIndex = mid;
+                    parseArea.value = art.marks[mid].parse;
+                    renderMarkList();
+                    renderOriginal();
+                    renderRight();
+                    setTimeout(()=>{
+                        if(!parseArea.disabled) parseArea.focus();
+                    },0);
+                }
+                row.onmouseenter = ()=>{
+                    art.listHoverMarkIndex = mid;
+                    renderOriginal();
+                }
+                row.onmouseleave = ()=>{
+                    art.listHoverMarkIndex = null;
+                    renderOriginal();
+                }
+            })
+        }
+
+        delSelectedMarkBtn.onclick = ()=>{
+            const art = getCurrentArticle();
+            if(!art) return;
+            if(art.selectedMarkIndex === null){
+                alert("请先在标记列表点击选中一条标记");
+                return;
+            }
+            const delIdx = art.selectedMarkIndex;
+            const delMark = art.marks[delIdx];
+            art.fixedMarkIds = art.fixedMarkIds.filter(id => id !== delMark.markId);
+            art.marks.splice(delIdx,1);
+            art.selectedMarkIndex = null;
+            art.listHoverMarkIndex = null;
+            parseArea.value = "";
+            renderMarkList();
+            renderOriginal();
+            renderRight();
+        }
+
+        function renderRight(){
+            const art = getCurrentArticle();
+            if(!art) return;
+            if(art.mode === "bulb"){
+                parseArea.style.display = "none";
+                let tempHtml = "";
+                if(art.hoverMarks && art.hoverMarks.length>0){
+                    art.hoverMarks.forEach((hm)=>{
+                        const checked = art.fixedMarkIds.includes(hm.markId) ? "checked" : "";
+                        tempHtml += `<div class="fixed-item temp-item">
+                            <label>
+                                <input class="item-checkbox" type="checkbox" data-mark-id="${hm.markId}" ${checked}>
+                                <strong>[${hm.types.join(",")}] ${escapeHtml(hm.text)}</strong>
+                            </label>
+                            <div>${escapeHtml(hm.parse || "暂无解析")}</div>
+                        </div>`;
+                    })
+                }
+                tempContent.innerHTML = tempHtml;
+                let fixedHtml = "";
+                const fixedMarks = art.marks.filter(m => art.fixedMarkIds.includes(m.markId));
+                fixedMarks.forEach((hm)=>{
+                    fixedHtml += `<div class="fixed-item">
+                        <label>
+                            <input class="item-checkbox" type="checkbox" data-mark-id="${hm.markId}" checked>
+                            <strong>[${hm.types.join(",")}] ${escapeHtml(hm.text)}</strong>
+                        </label>
+                        <div>${escapeHtml(hm.parse || "暂无解析")}</div>
+                    </div>`;
+                })
+                fixedContent.innerHTML = fixedHtml;
+
+                $$(".item-checkbox").forEach(cb=>{
+                    cb.onchange = ()=>{
+                        const mid = cb.dataset.markId;
+                        if(cb.checked){
+                            if(!art.fixedMarkIds.includes(mid)){
+                                art.fixedMarkIds.push(mid);
+                            }
+                        }else{
+                            art.fixedMarkIds = art.fixedMarkIds.filter(id=>id !== mid);
+                        }
+                        renderRight();
+                    }
+                })
+            }else{
+                tempContent.innerHTML = "<div>仅在💡悬浮释义模式下生效</div>";
+                fixedContent.innerHTML = "";
+                parseArea.style.display = "block";
+                parseArea.disabled = !(art.mode === "pen" && art.selectedMarkIndex !== null);
+            }
+        }
+
+        function saveCurrentMarkParse(){
+            const art = getCurrentArticle();
+            if(!art) return;
+            if(art.selectedMarkIndex === null){
+                alert("请先点击左侧任意已标记文本，或在下方标记列表选中条目");
+                return;
+            }
+            art.marks[art.selectedMarkIndex].parse = parseArea.value;
+            renderMarkList();
+            renderOriginal();
+            renderRight();
+        }
+        editMarkParseBtn.onclick = saveCurrentMarkParse;
+
+        parseArea.onkeydown = function(e){
+            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                saveCurrentMarkParse();
+            }
+        }
+
+        function setMode(newMode){
+            const art = getCurrentArticle();
+            if(!art) return;
+            art.mode = newMode;
+            penBtn.classList.remove("active");
+            bulbBtn.classList.remove("active");
+            if(newMode === "pen") penBtn.classList.add("active");
+            if(newMode === "bulb") bulbBtn.classList.add("active");
+            art.hoverMarks = [];
+            art.listHoverMarkIndex = null;
+            renderOriginal();
+            renderRight();
+            renderMarkList();
+        }
+        penBtn.onclick = ()=> {
+            const art = getCurrentArticle();
+            if(!art) return;
+            setMode(art.mode === "pen" ? "normal" : "pen");
+        }
+        bulbBtn.onclick = ()=> {
+            const art = getCurrentArticle();
+            if(!art) return;
+            setMode(art.mode === "bulb" ? "normal" : "bulb");
+        }
+
+        resetBtn.onclick = ()=>{
+            const art = getCurrentArticle();
+            if(!art) return;
+            art.marks = [];
+            art.fixedMarkIds = [];
+            art.hoverMarks = [];
+            art.listHoverMarkIndex = null;
+            art.selectedMarkIndex = null;
+            art.rawText = "";
+            inputArticle.value = "";
+            artTitle.value = "";
+            artSource.value = "";
+            artDate.value = "";
+            originalText.innerHTML = "";
+            tempContent.innerHTML = "";
+            fixedContent.innerHTML = "";
+            parseArea.value = "";
+            setMode("normal");
+            updateWordCount();
+        }
+        clearFixedBtn.onclick = ()=>{
+            const art = getCurrentArticle();
+            if(!art) return;
+            art.fixedMarkIds = [];
+            renderRight();
+        }
+
+        document.onmouseup = async ()=>{
+            const art = getCurrentArticle();
+            if(!art || art.mode !== "pen") return;
+            const sel = window.getSelection();
+            const selectedText = sel.toString();
+            if(!selectedText.trim()) return;
+            const range = sel.getRangeAt(0);
+            const container = range.commonAncestorContainer;
+            if(!originalText.contains(container)) return;
+
+            const preRange = document.createRange();
+            preRange.selectNodeContents(originalText);
+            preRange.setEnd(range.startContainer, range.startOffset);
+            const start = preRange.toString().length;
+            const end = start + selectedText.length;
+
+            const existIndex = art.marks.findIndex(m=>m.start===start && m.end===end);
+            editMarkIndex = existIndex;
+            pendingSelectionRange = {start, end, text:selectedText};
+
+            $$("#typeModal input[type=checkbox]").forEach(cb=>cb.checked=false);
+            if(existIndex >=0){
+                const mark = art.marks[existIndex];
+                mark.types.forEach(t=>{
+                    $$(`#typeModal input[value="${t}"]`)[0].checked = true;
+                })
+            }
+            typeModal.classList.add("show");
+            sel.removeAllRanges();
+        }
+
+        confirmTypeBtn.onclick = ()=>{
+            const art = getCurrentArticle();
+            const checkboxes = $$("#typeModal input[type=checkbox]:checked");
+            const types = Array.from(checkboxes).map(cb=>cb.value);
+            if(types.length ===0){
+                alert("至少选择一种标记类型");
+                return;
+            }
+            const p = pendingSelectionRange;
+            if(editMarkIndex >=0){
+                art.marks[editMarkIndex].types = types;
+            }else{
+                art.marks.push({
+                    markId:Date.now().toString(),
+                    text:p.text,
+                    start:p.start,
+                    end:p.end,
+                    types:types,
+                    parse:""
+                });
+            }
+            typeModal.classList.remove("show");
+            pendingSelectionRange=null;
+            editMarkIndex=null;
+            renderOriginal();
+            renderMarkList();
+            renderRight();
+        }
+
+        cancelTypeBtn.onclick = ()=>{
+            typeModal.classList.remove("show");
+            pendingSelectionRange=null;
+            editMarkIndex=null;
+        }
+
+        // 构建带标记样式 + 上标序号的打印HTML
+        function buildPrintHtml(art){
+            // 固定释义，按原文出现顺序排序
+            let fixedMarks = art.marks.filter(m => art.fixedMarkIds.includes(m.markId));
+            fixedMarks.sort((a,b)=>a.start - b.start);
+
+            // 建立markId -> 序号映射
+            const markIndexMap = new Map();
+            fixedMarks.forEach((m, idx)=>{
+                markIndexMap.set(m.markId, idx+1);
+            });
+
+            const plainText = art.rawText;
+            const allMarks = [...art.marks];
+            const breakPoints = new Set();
+            breakPoints.add(0);
+            breakPoints.add(plainText.length);
+            for(const m of allMarks){
+                breakPoints.add(m.start);
+                breakPoints.add(m.end);
+            }
+            const posList = Array.from(breakPoints).sort((a,b)=>a-b);
+
+            let printTextHtml = "";
+            for(let i=0; i < posList.length -1; i++){
+                const s = posList[i];
+                const e = posList[i+1];
+                if(s >= e) continue;
+                const sliceText = plainText.slice(s,e);
+                const hitMarks = allMarks.filter(m => m.start <= s && m.end >= e);
+                if(hitMarks.length ===0){
+                    printTextHtml += escapeHtml(sliceText);
+                    continue;
+                }
+                let cssClass = "";
+                const typeSet = new Set();
+                hitMarks.forEach(m=>m.types.forEach(t=>typeSet.add(t)));
+                if(typeSet.has("vocab")) cssClass += " print-mark-vocab";
+                if(typeSet.has("phrase")) cssClass += " print-mark-phrase";
+                if(typeSet.has("sentence")) cssClass += " print-mark-sentence";
+
+                let suffixSup = "";
+                // 判断这个片段是否命中固定标记，并且是该标记的终点位置
+                for(const hm of hitMarks){
+                    if(markIndexMap.has(hm.markId) && e === hm.end){
+                        suffixSup += `<span class="print-sup">${markIndexMap.get(hm.markId)}</span>`;
+                    }
+                }
+                printTextHtml += `<span class="${cssClass}">${escapeHtml(sliceText)}${suffixSup}</span>`;
+            }
+
+            let printHtml = `
+                <div class="print-title">${escapeHtml(art.title || "无标题文章")}</div>
+                <div class="print-subtitle">来源：${escapeHtml(art.source || "-")}｜时间：${escapeHtml(art.pubDate || "-")}</div>
+                <div class="print-original">${printTextHtml}</div>
+                <div class="print-subtitle">📖固定标记释义：</div>
+            `;
+            fixedMarks.forEach((m, idx)=>{
+                const num = idx+1;
+                printHtml += `<div class="print-mark-item">${num}.【${m.types.join(",")}】${escapeHtml(m.text)}：${escapeHtml(m.parse || "暂无解析")}</div>`;
+            });
+            return printHtml;
+        }
+
+        // 原有打印按钮
+        printBtn.onclick = function(){
+            const art = getCurrentArticle();
+            if(!art) return;
+            printWrap.innerHTML = buildPrintHtml(art);
+            setTimeout(()=>{
+                window.print();
+                printWrap.innerHTML = "";
+            },120);
+        }
+
+        // PDF导出
+        exportPdfBtn.onclick = async function(){
+            const art = getCurrentArticle();
+            if(!art) return alert("请先创建并加载文章");
+            printWrap.innerHTML = buildPrintHtml(art);
+            printWrap.style.display = "block";
+
+            const opt = {
+                margin: 10,
+                filename: `${art.title || "外刊文章"}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS:true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            try{
+                await html2pdf().set(opt).from(printWrap).save();
+            }catch(e){
+                alert("PDF生成失败："+e.message);
+            }
+            printWrap.style.display = "none";
+            printWrap.innerHTML = "";
+        }
+
+        // ============ 导出单篇文章JSON ============
+        exportSingleJsonBtn.onclick = function(){
+            const art = getCurrentArticle();
+            if(!art) return alert("没有选中任何文章");
+            syncMetaToArticle();
+            const jsonStr = JSON.stringify(art,null,2);
+            const blob = new Blob([jsonStr], {type:"application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            let fileName = art.title.replace(/[\\/:*?"<>|]/g,"_");
+            a.download = `${fileName}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ============ 导入JSON ============
+        importJsonBtn.onclick = function(){
+            jsonFileInput.click();
+        }
+        jsonFileInput.onchange = async function(e){
+            const file = e.target.files[0];
+            if(!file) return;
+            const text = await file.text();
+            try{
+                const data = JSON.parse(text);
+                if(data.id && data.marks !== undefined){
+                    data.id = Date.now().toString();
+                    appState.articles.push(data);
+                    alert(`✅导入成功：${data.title}`);
+                }else if(Array.isArray(data)){
+                    data.forEach(item=>{
+                        if(item.id && item.marks !== undefined){
+                            item.id = Date.now().toString();
+                            appState.articles.push(item);
+                        }
+                    })
+                    alert(`✅批量导入文章，共${data.length}篇`);
+                }else{
+                    alert("文件格式不识别，请使用本工具导出的文章JSON");
+                    return;
+                }
+                saveAllToLocal();
+                renderArticleList();
+                jsonFileInput.value = "";
+            }catch(err){
+                alert("JSON解析失败："+err.message);
+                jsonFileInput.value = "";
+            }
+        }
+
+        function saveAllToLocal(){
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        }
+        saveLocalBtn.onclick = ()=>{
+            syncMetaToArticle();
+            saveAllToLocal();
+            alert("✅全部文章(标题/来源/时间/标记/解析/收藏)已保存到本地");
+        }
+        function loadAllFromLocal(){
+            const json = localStorage.getItem(STORAGE_KEY);
+            if(json){
+                try{
+                    appState = JSON.parse(json);
+                }catch(e){
+                    appState={articles:[],currentArticleId:null};
+                }
+            }
+        }
+        newArticleBtn.onclick = ()=>{
+            const newArt = createArticle();
+            appState.articles.push(newArt);
+            appState.currentArticleId = newArt.id;
+            renderArticleList();
+            loadCurrentArticle();
+        }
+
+        window.onload = ()=>{
+            loadAllFromLocal();
+            if(appState.articles.length ===0){
+                const art = createArticle();
+                appState.articles.push(art);
+                appState.currentArticleId = art.id;
+            }
+            renderArticleList();
+            loadCurrentArticle();
+        }
+    </script>
+</body>
+</html>
